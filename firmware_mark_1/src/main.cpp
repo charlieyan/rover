@@ -1,7 +1,20 @@
 // basics
 #include <Arduino.h>
 
-// bluetooth
+// motors, pins 9, 8, 7, 6, 5, 4, 3 (PWM), left of Teensy mount
+#include <SparkFun_TB6612.h>
+#define PWMA 3
+#define AIN2 4
+#define AIN1 5
+#define STBY 6
+#define BIN1 7
+#define BIN2 8
+#define PWMB 9
+const int offset = 1;
+Motor motor_l = Motor(AIN1, AIN2, PWMA, offset, STBY);
+Motor motor_r = Motor(BIN1, BIN2, PWMB, offset, STBY);
+
+// bluetooth, pins 10, 11, 12, 13 (SPI), south of Teensy mount
 #include <SPI.h>
 #include <lib_aci.h>
 #include <aci_setup.h>
@@ -27,30 +40,33 @@ static hal_aci_data_t setup_msgs[NB_SETUP_MESSAGES] PROGMEM = SETUP_MESSAGES_CON
 // Current State of the the GATT client (Service Discovery)
 // Status of the bond (R) Peer address
 static struct aci_state_t aci_state;
-/*
-Temporary buffers for sending ACI commands
-*/
+/* Temporary buffers for sending ACI commands */
 static hal_aci_evt_t  aci_data;
 //static hal_aci_data_t aci_cmd;
 
-/*
-Timing change state variable
-*/
+/* Timing change state variable */
 static bool timing_change_done          = false;
 
-/*
-Used to test the UART TX characteristic notification
-*/
+/* Used to test the UART TX characteristic notification */
 static uart_over_ble_t uart_over_ble;
 static uint8_t uart_buffer[20];
 static uint8_t uart_buffer_len = 0;
 static uint8_t dummychar = 0;
 bool stringComplete = false;  // whether the string is complete
-uint8_t stringIndex = 0;      //Initialize the index to store incoming chars
+uint8_t stringIndex = 0; //Initialize the index to store incoming chars
 
-/*
-Initialize the radio_ack. This is the ack received for every transmitted packet.
-*/
+bool report_ready;
+void report_(String msg) {  // switches between reporting over Serial to reporting over BLE
+  Serial.print(msg);
+}
+void report_ble(String msg) {
+
+}
+void report(String msg) {
+  report_serial(msg);
+}
+
+/* Initialize the radio_ack. This is the ack received for every transmitted packet. */
 //static bool radio_ack_pending = false;
 
 /* Define how assert should function in the BLE library */
@@ -149,19 +165,13 @@ bool uart_process_control_point_rx(uint8_t *byte, uint8_t length) {
 
 void aci_loop() {
   static bool setup_required = false;
-
   // We enter the if statement only when there is a ACI event available to be processed
   if (lib_aci_event_get(&aci_state, &aci_data)) {
     aci_evt_t * aci_evt;
     aci_evt = &aci_data.evt;
-
-    switch(aci_evt->evt_opcode)
-    {
-      /**
-      As soon as you reset the nRF8001 you will get an ACI Device Started Event
-      */
-      case ACI_EVT_DEVICE_STARTED:
-      {
+    switch(aci_evt->evt_opcode) {
+      /** As soon as you reset the nRF8001 you will get an ACI Device Started Event */
+      case ACI_EVT_DEVICE_STARTED: {
         aci_state.data_credit_total = aci_evt->params.device_started.credit_available;
         switch(aci_evt->params.device_started.device_mode)
         {
@@ -340,11 +350,12 @@ void aci_loop() {
   }
 }
 
-// ultrasonics
+// 2x ultrasonics, pins 14, 15, 16, 17 (5V tolerant), right of Teensy mount
 #include <Ultrasonic.h>
-Ultrasonic ultrasonic(15, 14); // (Trig PIN,Echo PIN), 5V tolerant pins
+Ultrasonic ultrasonic_1(14, 15); // (Trig PIN,Echo PIN), 5V tolerant pins
+Ultrasonic ultrasonic_2(16, 17); // (Trig PIN,Echo PIN), 5V tolerant pins
 
-// 10-DOF IMU
+// 10-DOF IMU, pins 19, 18 (I2C), right of Teensy mount
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_LSM303_U.h>
@@ -415,26 +426,16 @@ void displaySensorDetails(void)
   delay(500);
 }
 
-// motors
-#include <SparkFun_TB6612.h>
-#define PWMA 23
-#define AIN2 19
-#define AIN1 18
-#define STBY 17
-#define PWMB 22
-#define BIN2 16
-#define BIN1 15
-const int offset = 1;
-Motor motor_l = Motor(AIN1, AIN2, PWMA, offset, STBY);
-Motor motor_r = Motor(BIN1, BIN2, PWMB, offset, STBY);
+// control button, status LED, pins 20, 21
+#define CONTROL_BUTTON 20
+#define STATUS_LED 21
 
 String readString;
+bool responsive = false;
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB
-  }
+  while (!Serial) {;}
   Serial.println("starting serial");
 
   /* Point ACI data structures to the the setup data that the nRFgo studio generated for the nRF8001 */
@@ -457,7 +458,7 @@ void setup() {
   aci_state.aci_pins.optional_chip_sel_pin = UNUSED;
   aci_state.aci_pins.interface_is_interrupt = false; //Interrupts still not available in Chipkit
   aci_state.aci_pins.interrupt_number = 1;
-  aci_state.aci_pins.spi_clock_divider = SPI_CLOCK_DIV8;//SPI_CLOCK_DIV8  = 2MHz SPI speed, SPI_CLOCK_DIV16 = 1MHz SPI speed
+  aci_state.aci_pins.spi_clock_divider = SPI_CLOCK_DIV8;// SPI_CLOCK_DIV8 = 2MHz SPI speed, SPI_CLOCK_DIV16 = 1MHz SPI speed
 
   //We reset the nRF8001 here by toggling the RESET line connected to the nRF8001
   //If the RESET line is not available we call the ACI Radio Reset to soft reset the nRF8001
@@ -616,9 +617,9 @@ void loop() {
   Serial.println(F(""));
 
   // ultrasonics
-  Serial.print(ultrasonic.Ranging(CM)); // CM or INC
+  Serial.print(ultrasonic_1.Ranging(CM)); // CM or INC
   Serial.print(" cm, " );
-  Serial.print(ultrasonic.Timing());
+  Serial.print(ultrasonic_1.Timing());
   Serial.println(" ms" ); // milliseconds
 
   delay(1000);
