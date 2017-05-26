@@ -13,8 +13,10 @@
 const int offset = 1;
 Motor motor_l = Motor(AIN1, AIN2, PWMA, offset, STBY);
 Motor motor_r = Motor(BIN1, BIN2, PWMB, offset, STBY);
+int motor_l_speed = -1;
+int motor_r_speed = -1;
 
-// bluetooth, pins 10, 11, 12, 13 (SPI), south of Teensy mount
+// bluetooth, pins 10, 11, 12, 13 (SPI) 14 = RST, 15 = RDY, south of Teensy mount
 #include <SPI.h>
 #include <lib_aci.h>
 #include <aci_setup.h>
@@ -60,6 +62,9 @@ void report_(String msg) {  // switches between reporting over Serial to reporti
   Serial.print(msg);
 }
 void report_ble(String msg) {
+
+}
+void report_serial(String msg) {
 
 }
 void report(String msg) {
@@ -265,9 +270,16 @@ void aci_loop() {
           Serial.print(F(" Data(Hex) : "));
           for(int i=0; i<aci_evt->len - 2; i++)
           {
-            Serial.print((char)aci_evt->params.data_received.rx_data.aci_data[i]);
+            char temp = (char)aci_evt->params.data_received.rx_data.aci_data[i];
+            Serial.print(temp);
             uart_buffer[i] = aci_evt->params.data_received.rx_data.aci_data[i];
-            Serial.print(F(" "));
+            if (temp == 's') {
+              motor_l.drive(255,1000);
+              motor_r.drive(255,1000);
+            } else if (temp == 't') {
+              motor_l.brake();
+              motor_r.brake();
+            }
           }
 
           uart_buffer_len = aci_evt->len - 2;
@@ -350,9 +362,9 @@ void aci_loop() {
   }
 }
 
-// 2x ultrasonics, pins 14, 15, 16, 17 (5V tolerant), right of Teensy mount
+// 2x ultrasonics, pins 1, 2, 16, 17 (5V tolerant), right of Teensy mount
 #include <Ultrasonic.h>
-Ultrasonic ultrasonic_1(14, 15); // (Trig PIN,Echo PIN), 5V tolerant pins
+Ultrasonic ultrasonic_1(1, 2); // (Trig PIN,Echo PIN), 5V tolerant pins
 Ultrasonic ultrasonic_2(16, 17); // (Trig PIN,Echo PIN), 5V tolerant pins
 
 // 10-DOF IMU, pins 19, 18 (I2C), right of Teensy mount
@@ -426,9 +438,9 @@ void displaySensorDetails(void)
   delay(500);
 }
 
-// control button, status LED, pins 20, 21
-#define CONTROL_BUTTON 20
-#define STATUS_LED 21
+// control button, status LED, pins 0, 20
+#define CONTROL_BUTTON 0
+#define STATUS_LED 20
 
 String readString;
 bool responsive = false;
@@ -449,11 +461,11 @@ void setup() {
   aci_state.aci_setup_info.num_setup_msgs = NB_SETUP_MESSAGES;
   aci_state.aci_pins.board_name = BOARD_DEFAULT; //See board.h for details REDBEARLAB_SHIELD_V1_1 or BOARD_DEFAULT
   aci_state.aci_pins.reqn_pin = 10; //SS for Nordic board, 9 for REDBEARLAB_SHIELD_V1_1
-  aci_state.aci_pins.rdyn_pin = 2; //3 for Nordic board, 8 for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.rdyn_pin = 15; //3 for Nordic board, 8 for REDBEARLAB_SHIELD_V1_1
   aci_state.aci_pins.mosi_pin = 11;
   aci_state.aci_pins.miso_pin = 12;
   aci_state.aci_pins.sck_pin = 13;
-  aci_state.aci_pins.reset_pin = 9; //4 for Nordic board, UNUSED for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.reset_pin = 14; //4 for Nordic board, UNUSED for REDBEARLAB_SHIELD_V1_1
   aci_state.aci_pins.active_pin = UNUSED;
   aci_state.aci_pins.optional_chip_sel_pin = UNUSED;
   aci_state.aci_pins.interface_is_interrupt = false; //Interrupts still not available in Chipkit
@@ -526,101 +538,106 @@ void loop() {
     }
   }
 
-  if (readString == "start") {
+  if (readString == "s") {
     motor_l.drive(255,1000);
     motor_r.drive(255,1000);
   }
-  else if (readString == "stop") {
+  else if (readString == "t") {
     motor_l.brake();
     motor_r.brake();
   }
-
   readString = "";
 
   // 10-DOF
   /* Display the results (acceleration is measured in m/s^2) */
   accel.getEvent(&accel_event);
+  /*
   Serial.print(F("ACCEL "));
   Serial.print("X: "); Serial.print(accel_event.acceleration.x); Serial.print("  ");
   Serial.print("Y: "); Serial.print(accel_event.acceleration.y); Serial.print("  ");
   Serial.print("Z: "); Serial.print(accel_event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
+  */
 
   /* Display the results (magnetic vector values are in micro-Tesla (uT)) */
   mag.getEvent(&mag_event);
+  /*
   Serial.print(F("MAG   "));
   Serial.print("X: "); Serial.print(mag_event.magnetic.x); Serial.print("  ");
   Serial.print("Y: "); Serial.print(mag_event.magnetic.y); Serial.print("  ");
   Serial.print("Z: "); Serial.print(mag_event.magnetic.z); Serial.print("  ");Serial.println("uT");
+  */
 
   /* Calculate the heading using the magnetometer */
   mag.getEvent(&mag_event);
   if (dof.magGetOrientation(SENSOR_AXIS_Z, &mag_event, &orientation))
   {
     /* 'orientation' should have valid .heading data now */
-    Serial.print(F("Heading: "));
-    Serial.print(orientation.heading);
-    Serial.print(F("; "));
+    // Serial.print(F("Heading: "));
+    // Serial.print(orientation.heading);
+    // Serial.print(F("; "));
   }
 
   /* Display the results (gyrocope values in rad/s) */
   gyro.getEvent(&gyro_event);
+  /*
   Serial.print(F("GYRO  "));
   Serial.print("X: "); Serial.print(gyro_event.gyro.x); Serial.print("  ");
   Serial.print("Y: "); Serial.print(gyro_event.gyro.y); Serial.print("  ");
   Serial.print("Z: "); Serial.print(gyro_event.gyro.z); Serial.print("  ");Serial.println("rad/s ");
+  */
 
   if (dof.accelGetOrientation(&accel_event, &orientation))
   {
     /* 'orientation' should have valid .roll and .pitch fields */
-    Serial.print(F("Roll: "));
-    Serial.print(orientation.roll);
-    Serial.print(F("; "));
-    Serial.print(F("Pitch: "));
-    Serial.print(orientation.pitch);
-    Serial.print(F("; "));
+    // Serial.print(F("Roll: "));
+    // Serial.print(orientation.roll);
+    // Serial.print(F("; "));
+    // Serial.print(F("Pitch: "));
+    // Serial.print(orientation.pitch);
+    // Serial.print(F("; "));
   }
 
   /* Use the new fusionGetOrientation function to merge accel/mag data */
   if (dof.fusionGetOrientation(&accel_event, &mag_event, &orientation))
   {
     /* 'orientation' should have valid .roll and .pitch fields */
-    Serial.print(F("Orientation: "));
-    Serial.print(orientation.roll);
-    Serial.print(F(" "));
-    Serial.print(orientation.pitch);
-    Serial.print(F(" "));
-    Serial.print(orientation.heading);
-    Serial.println(F(""));
+    // Serial.print(F("Orientation: "));
+    // Serial.print(orientation.roll);
+    // Serial.print(F(" "));
+    // Serial.print(orientation.pitch);
+    // Serial.print(F(" "));
+    // Serial.print(orientation.heading);
+    // Serial.println(F(""));
   }
 
   /* Display the pressure sensor results (barometric pressure is measure in hPa) */
-  bmp.getEvent(&bmp_event);
-  if (bmp_event.pressure)
-  {
-    /* Display atmospheric pressure in hPa */
-    Serial.print(F("PRESS "));
-    Serial.print(bmp_event.pressure);
-    Serial.print(F(" hPa, "));
-    /* Display ambient temperature in C */
-    float temperature;
-    bmp.getTemperature(&temperature);
-    Serial.print(temperature);
-    Serial.print(F(" C, "));
-    /* Then convert the atmospheric pressure, SLP and temp to altitude    */
-    /* Update this next line with the current SLP for better results      */
-    float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
-    Serial.print(bmp.pressureToAltitude(seaLevelPressure,
-                                        bmp_event.pressure,
-                                        temperature));
-    Serial.println(F(" m"));
-  }
-  Serial.println(F(""));
-
-  // ultrasonics
-  Serial.print(ultrasonic_1.Ranging(CM)); // CM or INC
-  Serial.print(" cm, " );
-  Serial.print(ultrasonic_1.Timing());
-  Serial.println(" ms" ); // milliseconds
+  // bmp.getEvent(&bmp_event);
+  // if (bmp_event.pressure)
+  // {
+  //   /* Display atmospheric pressure in hPa */
+  //   Serial.print(F("PRESS "));
+  //   Serial.print(bmp_event.pressure);
+  //   Serial.print(F(" hPa, "));
+  //   /* Display ambient temperature in C */
+  //   float temperature;
+  //   bmp.getTemperature(&temperature);
+  //   Serial.print(temperature);
+  //   Serial.print(F(" C, "));
+  //   /* Then convert the atmospheric pressure, SLP and temp to altitude    */
+  //   /* Update this next line with the current SLP for better results      */
+  //   float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
+  //   Serial.print(bmp.pressureToAltitude(seaLevelPressure,
+  //                                       bmp_event.pressure,
+  //                                       temperature));
+  //   Serial.println(F(" m"));
+  // }
+  // Serial.println(F(""));
+  //
+  // // ultrasonics
+  // Serial.print(ultrasonic_1.Ranging(CM)); // CM or INC
+  // Serial.print(" cm, " );
+  // Serial.print(ultrasonic_1.Timing());
+  // Serial.println(" ms" ); // milliseconds
 
   delay(1000);
 }
