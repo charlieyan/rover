@@ -1,8 +1,22 @@
 // basics
 #include <Arduino.h>
-
-// motors, pins 9, 8, 7, 6, 5, 4, 3 (PWM), left of Teensy mount
 #include <SparkFun_TB6612.h>
+#include <SPI.h>
+#include <lib_aci.h>
+#include <aci_setup.h>
+#include <uart_over_ble.h>
+#include <services.h>
+#include <Ultrasonic.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_LSM303_U.h>
+#include <Adafruit_BMP085_U.h>
+#include <Adafruit_L3GD20_U.h>
+#include <Adafruit_10DOF.h>
+
+#define STATUS_LED 0
+#define U1_TRIG 1
+#define U1_ECHO 2
 #define PWMA 3
 #define AIN2 4
 #define AIN1 5
@@ -10,6 +24,15 @@
 #define BIN1 7
 #define BIN2 8
 #define PWMB 9
+#define BLE_REQN 10
+#define BLE_MOSI 11
+#define BLE_MISO 12
+#define BLE_SCK 13
+#define BLE_RESET 14
+#define BLE_RDYN 15
+#define U2_TRIG 16
+#define U2_ECHO 17
+
 const int offset = 1;
 Motor motor_l = Motor(AIN1, AIN2, PWMA, offset, STBY);
 Motor motor_r = Motor(BIN1, BIN2, PWMB, offset, STBY);
@@ -17,11 +40,7 @@ int motor_l_speed = -1;
 int motor_r_speed = -1;
 
 // bluetooth, pins 10, 11, 12, 13 (SPI) 14 = RST, 15 = RDY, south of Teensy mount
-#include <SPI.h>
-#include <lib_aci.h>
-#include <aci_setup.h>
-#include <uart_over_ble.h>
-#include <services.h>
+
 #ifdef SERVICES_PIPE_TYPE_MAPPING_CONTENT
 static services_pipe_type_mapping_t services_pipe_type_mapping[NUMBER_OF_PIPES] = SERVICES_PIPE_TYPE_MAPPING_CONTENT;
 #else
@@ -53,23 +72,8 @@ static bool timing_change_done          = false;
 static uart_over_ble_t uart_over_ble;
 static uint8_t uart_buffer[20];
 static uint8_t uart_buffer_len = 0;
-static uint8_t dummychar = 0;
 bool stringComplete = false;  // whether the string is complete
 uint8_t stringIndex = 0; //Initialize the index to store incoming chars
-
-bool report_ready;
-void report_(String msg) {  // switches between reporting over Serial to reporting over BLE
-  Serial.print(msg);
-}
-void report_ble(String msg) {
-
-}
-void report_serial(String msg) {
-
-}
-void report(String msg) {
-  report_serial(msg);
-}
 
 /* Initialize the radio_ack. This is the ack received for every transmitted packet. */
 //static bool radio_ack_pending = false;
@@ -274,9 +278,11 @@ void aci_loop() {
             Serial.print(temp);
             uart_buffer[i] = aci_evt->params.data_received.rx_data.aci_data[i];
             if (temp == 's') {
-              motor_l.drive(255,1000);
-              motor_r.drive(255,1000);
+              digitalWrite(STATUS_LED, HIGH);
+              motor_l.drive(255);
+              motor_r.drive(255);
             } else if (temp == 't') {
+              digitalWrite(STATUS_LED, LOW);
               motor_l.brake();
               motor_r.brake();
             }
@@ -363,17 +369,11 @@ void aci_loop() {
 }
 
 // 2x ultrasonics, pins 1, 2, 16, 17 (5V tolerant), right of Teensy mount
-#include <Ultrasonic.h>
-Ultrasonic ultrasonic_1(1, 2); // (Trig PIN,Echo PIN), 5V tolerant pins
-Ultrasonic ultrasonic_2(16, 17); // (Trig PIN,Echo PIN), 5V tolerant pins
+Ultrasonic ultrasonic_1(U1_TRIG, U1_ECHO); // (Trig PIN,Echo PIN), 5V tolerant pins
+Ultrasonic ultrasonic_2(U2_TRIG, U2_ECHO); // (Trig PIN,Echo PIN), 5V tolerant pins
 
 // 10-DOF IMU, pins 19, 18 (I2C), right of Teensy mount
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_LSM303_U.h>
-#include <Adafruit_BMP085_U.h>
-#include <Adafruit_L3GD20_U.h>
-#include <Adafruit_10DOF.h>
+
 /* Assign a unique ID to the sensors */
 Adafruit_10DOF                dof   = Adafruit_10DOF();
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
@@ -387,68 +387,10 @@ sensors_event_t bmp_event;
 sensors_event_t gyro_event;
 sensors_vec_t   orientation;
 
-void displaySensorDetails(void)
-{
-  sensor_t sensor;
-
-  accel.getSensor(&sensor);
-  Serial.println(F("----------- ACCELEROMETER ----------"));
-  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" m/s^2"));
-  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" m/s^2"));
-  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution); Serial.println(F(" m/s^2"));
-  Serial.println(F("------------------------------------"));
-  Serial.println(F(""));
-
-  gyro.getSensor(&sensor);
-  Serial.println(F("------------- GYROSCOPE -----------"));
-  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" rad/s"));
-  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" rad/s"));
-  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution); Serial.println(F(" rad/s"));
-  Serial.println(F("------------------------------------"));
-  Serial.println(F(""));
-
-  mag.getSensor(&sensor);
-  Serial.println(F("----------- MAGNETOMETER -----------"));
-  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" uT"));
-  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" uT"));
-  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution); Serial.println(F(" uT"));
-  Serial.println(F("------------------------------------"));
-  Serial.println(F(""));
-
-  bmp.getSensor(&sensor);
-  Serial.println(F("-------- PRESSURE/ALTITUDE ---------"));
-  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" hPa"));
-  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" hPa"));
-  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution); Serial.println(F(" hPa"));
-  Serial.println(F("------------------------------------"));
-  Serial.println(F(""));
-
-  delay(500);
-}
-
-// control button, status LED, pins 0, 20
-#define CONTROL_BUTTON 0
-#define STATUS_LED 20
-
 String readString;
 bool responsive = false;
-
 void setup() {
-  Serial.begin(115200);
-  while (!Serial) {;}
-  Serial.println("starting serial");
+  pinMode(STATUS_LED, OUTPUT);
 
   /* Point ACI data structures to the the setup data that the nRFgo studio generated for the nRF8001 */
   if (NULL != services_pipe_type_mapping) {
@@ -460,12 +402,12 @@ void setup() {
   aci_state.aci_setup_info.setup_msgs = setup_msgs;
   aci_state.aci_setup_info.num_setup_msgs = NB_SETUP_MESSAGES;
   aci_state.aci_pins.board_name = BOARD_DEFAULT; //See board.h for details REDBEARLAB_SHIELD_V1_1 or BOARD_DEFAULT
-  aci_state.aci_pins.reqn_pin = 10; //SS for Nordic board, 9 for REDBEARLAB_SHIELD_V1_1
-  aci_state.aci_pins.rdyn_pin = 15; //3 for Nordic board, 8 for REDBEARLAB_SHIELD_V1_1
-  aci_state.aci_pins.mosi_pin = 11;
-  aci_state.aci_pins.miso_pin = 12;
-  aci_state.aci_pins.sck_pin = 13;
-  aci_state.aci_pins.reset_pin = 14; //4 for Nordic board, UNUSED for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.reqn_pin = BLE_REQN; //SS for Nordic board, 9 for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.mosi_pin = BLE_MOSI;
+  aci_state.aci_pins.miso_pin = BLE_MISO;
+  aci_state.aci_pins.sck_pin = BLE_SCK;
+  aci_state.aci_pins.reset_pin = BLE_RESET; //4 for Nordic board, UNUSED for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.rdyn_pin = BLE_RDYN; //3 for Nordic board, 8 for REDBEARLAB_SHIELD_V1_1
   aci_state.aci_pins.active_pin = UNUSED;
   aci_state.aci_pins.optional_chip_sel_pin = UNUSED;
   aci_state.aci_pins.interface_is_interrupt = false; //Interrupts still not available in Chipkit
@@ -479,165 +421,20 @@ void setup() {
   lib_aci_init(&aci_state, false);
 
   /* Initialise the sensors */
-  if(!accel.begin())
-  {
-    /* There was a problem detecting the ADXL345 ... check your connections */
-    Serial.println(F("Ooops, no LSM303 detected ... Check your wiring!"));
-    while(1);
-  }
-  if(!mag.begin())
-  {
-    /* There was a problem detecting the LSM303 ... check your connections */
-    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
-    while(1);
-  }
-  if(!bmp.begin())
-  {
-    /* There was a problem detecting the BMP085 ... check your connections */
-    Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
-    while(1);
-  }
-  if(!gyro.begin())
-  {
-    /* There was a problem detecting the L3GD20 ... check your connections */
-    Serial.print("Ooops, no L3GD20 detected ... Check your wiring or I2C ADDR!");
-    while(1);
-  }
-  Serial.println("Found 10-DOF sensor");
+  if(!accel.begin()){}
+  if(!mag.begin()){}
+  if(!bmp.begin()){}
+  if(!gyro.begin()){}
+  // blink 2x
+  digitalWrite(STATUS_LED, HIGH);
+  delay(500);
+  digitalWrite(STATUS_LED, LOW);
+  delay(500);
+  digitalWrite(STATUS_LED, HIGH);
+  delay(500);
+  digitalWrite(STATUS_LED, LOW);
 }
 
 void loop() {
   aci_loop();
-
-  while (Serial.available()) {
-    char c = Serial.read(); // gets one byte from serial buffer
-    readString += c; //makes the string readString
-    delay(2); //slow looping to allow buffer to fill with next character
-  }
-  if (readString.length() > 0) {
-    Serial.println(readString);
-  }
-
-  readString = readString.trim();
-
-  if (readString.length() <= 20 and readString.length() > 0) {
-    uart_buffer_len = stringIndex + 1;
-    for (int i = 0; i < readString.length(); ++i) {
-      uart_buffer[i] = readString[i];
-    }
-    uart_buffer_len = readString.length();
-    if (!lib_aci_send_data(
-      PIPE_UART_OVER_BTLE_UART_TX_TX,
-      uart_buffer,
-      uart_buffer_len)) {
-      Serial.println(F("Serial input dropped"));
-    }
-    // clear the uart_buffer:
-    for (int i = 0; i < readString.length(); ++i) {
-      uart_buffer[i] = ' ';
-    }
-  }
-
-  if (readString == "s") {
-    motor_l.drive(255,1000);
-    motor_r.drive(255,1000);
-  }
-  else if (readString == "t") {
-    motor_l.brake();
-    motor_r.brake();
-  }
-  readString = "";
-
-  // 10-DOF
-  /* Display the results (acceleration is measured in m/s^2) */
-  accel.getEvent(&accel_event);
-  /*
-  Serial.print(F("ACCEL "));
-  Serial.print("X: "); Serial.print(accel_event.acceleration.x); Serial.print("  ");
-  Serial.print("Y: "); Serial.print(accel_event.acceleration.y); Serial.print("  ");
-  Serial.print("Z: "); Serial.print(accel_event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
-  */
-
-  /* Display the results (magnetic vector values are in micro-Tesla (uT)) */
-  mag.getEvent(&mag_event);
-  /*
-  Serial.print(F("MAG   "));
-  Serial.print("X: "); Serial.print(mag_event.magnetic.x); Serial.print("  ");
-  Serial.print("Y: "); Serial.print(mag_event.magnetic.y); Serial.print("  ");
-  Serial.print("Z: "); Serial.print(mag_event.magnetic.z); Serial.print("  ");Serial.println("uT");
-  */
-
-  /* Calculate the heading using the magnetometer */
-  mag.getEvent(&mag_event);
-  if (dof.magGetOrientation(SENSOR_AXIS_Z, &mag_event, &orientation))
-  {
-    /* 'orientation' should have valid .heading data now */
-    // Serial.print(F("Heading: "));
-    // Serial.print(orientation.heading);
-    // Serial.print(F("; "));
-  }
-
-  /* Display the results (gyrocope values in rad/s) */
-  gyro.getEvent(&gyro_event);
-  /*
-  Serial.print(F("GYRO  "));
-  Serial.print("X: "); Serial.print(gyro_event.gyro.x); Serial.print("  ");
-  Serial.print("Y: "); Serial.print(gyro_event.gyro.y); Serial.print("  ");
-  Serial.print("Z: "); Serial.print(gyro_event.gyro.z); Serial.print("  ");Serial.println("rad/s ");
-  */
-
-  if (dof.accelGetOrientation(&accel_event, &orientation))
-  {
-    /* 'orientation' should have valid .roll and .pitch fields */
-    // Serial.print(F("Roll: "));
-    // Serial.print(orientation.roll);
-    // Serial.print(F("; "));
-    // Serial.print(F("Pitch: "));
-    // Serial.print(orientation.pitch);
-    // Serial.print(F("; "));
-  }
-
-  /* Use the new fusionGetOrientation function to merge accel/mag data */
-  if (dof.fusionGetOrientation(&accel_event, &mag_event, &orientation))
-  {
-    /* 'orientation' should have valid .roll and .pitch fields */
-    // Serial.print(F("Orientation: "));
-    // Serial.print(orientation.roll);
-    // Serial.print(F(" "));
-    // Serial.print(orientation.pitch);
-    // Serial.print(F(" "));
-    // Serial.print(orientation.heading);
-    // Serial.println(F(""));
-  }
-
-  /* Display the pressure sensor results (barometric pressure is measure in hPa) */
-  // bmp.getEvent(&bmp_event);
-  // if (bmp_event.pressure)
-  // {
-  //   /* Display atmospheric pressure in hPa */
-  //   Serial.print(F("PRESS "));
-  //   Serial.print(bmp_event.pressure);
-  //   Serial.print(F(" hPa, "));
-  //   /* Display ambient temperature in C */
-  //   float temperature;
-  //   bmp.getTemperature(&temperature);
-  //   Serial.print(temperature);
-  //   Serial.print(F(" C, "));
-  //   /* Then convert the atmospheric pressure, SLP and temp to altitude    */
-  //   /* Update this next line with the current SLP for better results      */
-  //   float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
-  //   Serial.print(bmp.pressureToAltitude(seaLevelPressure,
-  //                                       bmp_event.pressure,
-  //                                       temperature));
-  //   Serial.println(F(" m"));
-  // }
-  // Serial.println(F(""));
-  //
-  // // ultrasonics
-  // Serial.print(ultrasonic_1.Ranging(CM)); // CM or INC
-  // Serial.print(" cm, " );
-  // Serial.print(ultrasonic_1.Timing());
-  // Serial.println(" ms" ); // milliseconds
-
-  delay(1000);
 }

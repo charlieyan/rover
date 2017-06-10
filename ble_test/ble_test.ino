@@ -80,12 +80,16 @@ void setup() {
   aci_state.aci_setup_info.setup_msgs = setup_msgs;
   aci_state.aci_setup_info.num_setup_msgs = NB_SETUP_MESSAGES;
   aci_state.aci_pins.board_name = BOARD_DEFAULT; //See board.h for details REDBEARLAB_SHIELD_V1_1 or BOARD_DEFAULT
+
+  
   aci_state.aci_pins.reqn_pin = 10; //SS for Nordic board, 9 for REDBEARLAB_SHIELD_V1_1
-  aci_state.aci_pins.rdyn_pin = 2; //3 for Nordic board, 8 for REDBEARLAB_SHIELD_V1_1
   aci_state.aci_pins.mosi_pin = 11;
   aci_state.aci_pins.miso_pin = 12;
-  aci_state.aci_pins.sck_pin = 13;  
-  aci_state.aci_pins.reset_pin = 9; //4 for Nordic board, UNUSED for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.sck_pin = 13;
+
+  aci_state.aci_pins.reset_pin = 14; //4 for Nordic board, UNUSED for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.rdyn_pin = 15; //3 for Nordic board, 8 for REDBEARLAB_SHIELD_V1_1
+
   aci_state.aci_pins.active_pin = UNUSED;
   aci_state.aci_pins.optional_chip_sel_pin = UNUSED;
   aci_state.aci_pins.interface_is_interrupt = false; //Interrupts still not available in Chipkit
