@@ -87,8 +87,8 @@ void setup() {
   aci_state.aci_pins.miso_pin = 12;
   aci_state.aci_pins.sck_pin = 13;
 
-  aci_state.aci_pins.reset_pin = 14; //4 for Nordic board, UNUSED for REDBEARLAB_SHIELD_V1_1
-  aci_state.aci_pins.rdyn_pin = 15; //3 for Nordic board, 8 for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.reset_pin = 15; //4 for Nordic board, UNUSED for REDBEARLAB_SHIELD_V1_1
+  aci_state.aci_pins.rdyn_pin = 14; //3 for Nordic board, 8 for REDBEARLAB_SHIELD_V1_1
 
   aci_state.aci_pins.active_pin = UNUSED;
   aci_state.aci_pins.optional_chip_sel_pin = UNUSED;

@@ -14,9 +14,9 @@
 #include <Adafruit_L3GD20_U.h>
 #include <Adafruit_10DOF.h>
 
-#define STATUS_LED 0
-#define U1_TRIG 1
-#define U1_ECHO 2
+#define U1_TRIG 0
+#define U1_ECHO 1
+#define STATUS_LED 2
 #define PWMA 3
 #define AIN2 4
 #define AIN1 5
@@ -28,8 +28,8 @@
 #define BLE_MOSI 11
 #define BLE_MISO 12
 #define BLE_SCK 13
-#define BLE_RESET 14
-#define BLE_RDYN 15
+#define BLE_RDYN 14
+#define BLE_RESET 15
 #define U2_TRIG 16
 #define U2_ECHO 17
 
@@ -427,9 +427,9 @@ void setup() {
   if(!gyro.begin()){}
   // blink 2x
   digitalWrite(STATUS_LED, HIGH);
-  delay(500);
+  delay(1000);
   digitalWrite(STATUS_LED, LOW);
-  delay(500);
+  delay(1000);
   digitalWrite(STATUS_LED, HIGH);
   delay(500);
   digitalWrite(STATUS_LED, LOW);
