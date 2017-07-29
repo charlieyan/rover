@@ -1,13 +1,13 @@
 #include <SparkFun_TB6612.h>
 
-#define PWMA 23
-#define AIN2 19
-#define AIN1 18
-#define STBY 17
+#define PWMA 3
+#define AIN2 4
+#define AIN1 5
+#define STBY 6
 
-#define PWMB 22
-#define BIN2 16
-#define BIN1 15
+#define BIN1 7
+#define BIN2 8
+#define PWMB 9
 
 const int offset = 1;
 Motor motor_l = Motor(AIN1, AIN2, PWMA, offset, STBY);
@@ -33,10 +33,12 @@ void loop()
   }
 
   if (readString == "start") {
-    motor_l.drive(255,1000);
-    motor_r.drive(255,1000);
+    Serial.println("starting");
+    motor_l.drive(255);
+    motor_r.drive(255);
   }
   else if (readString == "stop") {
+    Serial.println("stopping");
     motor_l.brake();
     motor_r.brake();
   }

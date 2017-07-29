@@ -279,9 +279,15 @@ void aci_loop() {
             uart_buffer[i] = aci_evt->params.data_received.rx_data.aci_data[i];
             if (temp == 's') {
               digitalWrite(STATUS_LED, HIGH);
+              motor_l.drive(50);
+              motor_r.drive(50);
+            }
+            else if (temp == 'f') {
+              digitalWrite(STATUS_LED, HIGH);
               motor_l.drive(255);
               motor_r.drive(255);
-            } else if (temp == 't') {
+            }
+            else if (temp == 't') {
               digitalWrite(STATUS_LED, LOW);
               motor_l.brake();
               motor_r.brake();
@@ -420,11 +426,11 @@ void setup() {
   //The second parameter is for turning debug printing on for the ACI Commands and Events so they be printed on the Serial
   lib_aci_init(&aci_state, false);
 
-  /* Initialise the sensors */
-  if(!accel.begin()){}
-  if(!mag.begin()){}
-  if(!bmp.begin()){}
-  if(!gyro.begin()){}
+  // /* Initialise the sensors */
+  // if(!accel.begin()){}
+  // if(!mag.begin()){}
+  // if(!bmp.begin()){}
+  // if(!gyro.begin()){}
   // blink 2x
   digitalWrite(STATUS_LED, HIGH);
   delay(1000);
